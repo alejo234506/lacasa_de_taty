@@ -1,16 +1,5 @@
-export const NOMBRES = [
-  "Rosalba Pérez", "Hernando Díaz", "Gloria Sánchez", "Ana Lucía Rojas",
-  "Miguel Ospina", "Carmen Villalba", "Jairo Restrepo", "Luz Marina Cano",
-  "Álvaro Beltrán", "Nohemí Cuadros", "Ricardo Salcedo", "Teresa Mendoza",
-  "Fabio Quintero", "Mariela Ardila", "Óscar Pineda", "Blanca Torres",
-  "Emma Whitfield", "Daniel Kramer", "Sofía Guerra", "Julián Mora",
-  "Helen Cartwright", "Norberto Ruiz", "Aura Cifuentes", "Pedro Nel Gómez",
-];
-
-export const TIPOS = ["Individual", "Doble", "Suite", "Compartida"] as const;
-export const PATRON = ["PENS", "PENS", "LIBRE", "HOTEL", "PENS", "SUCIA", "HOTEL", "LIBRE", "PENS", "MANT", "PENS", "HOTEL"] as const;
-
-export type RoomStatus = "PENS" | "HOTEL" | "LIBRE" | "SUCIA" | "MANT";
+import type { RoomStatus } from "./domain/types";
+export type { RoomStatus };
 
 export const EST: Record<RoomStatus, { label: string; color: string; bg: string; bar: string }> = {
   PENS: { label: "Pensionado", color: "#7a0d20", bg: "#f8eef0", bar: "#7a0d20" },
@@ -32,69 +21,16 @@ export const MINUTA_BASE: [string, string, string][] = [
   ["Cereal, fruta y café", "Ajiaco santafereño", "Tamal y pan"],
 ];
 
-export interface Room {
-  id: number;
-  numero: string;
-  tipo: string;
-  estado: RoomStatus;
-  ocupante: string;
-  tarifa: number;
-  desde: string;
-  hasta: string;
-  consumos: number;
-}
-
-export function generateRooms(): Room[] {
-  const out: Room[] = [];
-  let n = 0;
-  for (let piso = 1; piso <= 3; piso++) {
-    for (let i = 1; i <= 16; i++, n++) {
-      const est = PATRON[n % PATRON.length];
-      out.push({
-        id: n,
-        numero: `${piso}${String(i).padStart(2, "0")}`,
-        tipo: TIPOS[n % TIPOS.length],
-        estado: est,
-        ocupante:
-          est === "PENS" || est === "HOTEL"
-            ? NOMBRES[n % NOMBRES.length]
-            : est === "SUCIA"
-              ? "Salida 10:40 a.m."
-              : est === "MANT"
-                ? "Cambio de sifón"
-                : "Disponible",
-        tarifa: est === "PENS" ? 1250000 + (n % 4) * 90000 : 95000 + (n % 5) * 15000,
-        desde: est === "PENS" ? "01 feb 2026" : "29 ago 2026",
-        hasta: est === "PENS" ? "Contrato abierto" : "02 sep 2026",
-        consumos: (n % 3) * 18000,
-      });
-    }
-  }
-  return out;
-}
-
 export type AdminView =
   | "dashboard"
   | "rack"
   | "pensionados"
+  | "pagos"
   | "comedor"
   | "minuta"
   | "caja"
   | "cierre"
   | "recibo";
-
-export interface Recibo {
-  numero: string;
-  cliente: string;
-  documento: string;
-  hab: string;
-  concepto: string;
-  extra: string | null;
-  monto: number;
-  saldo: number;
-  grupo: string;
-  ventana: string;
-}
 
 export const PENS_BASE = [
   ["Rosalba Pérez", "1.032.884.117", "204", "REGULAR_13_20", true, 1290000, 0, "Trabajo remoto"],
@@ -122,23 +58,24 @@ export const INV_BASE = [
 ] as const;
 
 export const NAV_ITEMS = [
-  { key: "dashboard" as AdminView, label: "Dashboard", badge: "" },
-  { key: "rack" as AdminView, label: "Rack de habitaciones", badge: "libres" },
+  { key: "dashboard" as AdminView, label: "Resumen", badge: "" },
+  { key: "rack" as AdminView, label: "Habitaciones", badge: "libres" },
   { key: "pensionados" as AdminView, label: "Pensionados y cobros", badge: "por_cobrar" },
+  { key: "pagos" as AdminView, label: "Pagos y facturas", badge: "por_verificar" },
   { key: "comedor" as AdminView, label: "Comedor y ventas", badge: "" },
-  { key: "minuta" as AdminView, label: "Minuta mensual", badge: "" },
-  { key: "caja" as AdminView, label: "Caja menor e inventario", badge: "" },
-  { key: "cierre" as AdminView, label: "Cierre de mes", badge: "" },
-  { key: "recibo" as AdminView, label: "Recibo imprimible", badge: "" },
+  { key: "minuta" as AdminView, label: "Minuta semanal", badge: "" },
+  { key: "caja" as AdminView, label: "Gastos e inventario", badge: "" },
+  { key: "cierre" as AdminView, label: "Ganancias y cierre", badge: "" },
 ];
 
 export const TITULOS: Record<AdminView, [string, string]> = {
-  dashboard: ["Resumen del día", "Panorama financiero"],
-  rack: ["Operación", "Rack de habitaciones"],
-  pensionados: ["Cartera", "Pensionados mensuales"],
-  comedor: ["Comedor", "Desayuno, almuerzos y cenas"],
-  minuta: ["Comedor", "Minuta de septiembre"],
-  caja: ["Tesorería", "Caja menor e insumos"],
-  cierre: ["Contabilidad", "Cierre de agosto 2026"],
-  recibo: ["Documento", "Recibo de caja"],
+  dashboard: ["Resumen del mes", "Panorama general"],
+  rack: ["Operación", "Habitaciones"],
+  pensionados: ["Cartera", "Pensionados y cobros"],
+  pagos: ["Tesorería", "Pagos y facturas"],
+  comedor: ["Comedor", "Desayunos, almuerzos y cenas"],
+  minuta: ["Comedor", "Minuta semanal"],
+  caja: ["Tesorería", "Gastos, caja menor e inventario"],
+  cierre: ["Contabilidad", "Ganancias netas y cierre"],
+  recibo: ["Documento", "Factura"],
 };

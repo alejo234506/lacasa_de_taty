@@ -1,7 +1,6 @@
-"use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useLocation } from "react-router-dom";
 
 const SCROLL_KEY = "casa_taty_scroll";
 
@@ -13,7 +12,7 @@ function scrollToHash(hash: string, behavior: ScrollBehavior = "auto") {
 }
 
 export function ScrollRestoration() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   useEffect(() => {
     if (typeof window === "undefined") return;

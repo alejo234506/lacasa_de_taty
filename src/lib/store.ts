@@ -1,71 +1,91 @@
-"use client";
 
 import { create } from "zustand";
 import { apiGet } from "./api-client";
-import {
-  AdminView,
-  Recibo,
-  Room,
-  RoomStatus,
-} from "./data";
+import type { AdminView } from "./data";
 import type {
   CajaData,
   CierreData,
   DashboardData,
+  Pago,
   PanelResource,
-  ResidentRow,
+  ReporteRow,
+  ResidentView,
+  RoomView,
   Sale,
 } from "./panel-types";
 
 const STALE_MS = 8_000;
-const ALL_RESOURCES: PanelResource[] = ["rooms", "dashboard", "cierre", "residents", "sales", "caja"];
+const ALL_RESOURCES: PanelResource[] = ["rooms", "dashboard", "cierre", "residents", "sales", "caja", "pagos", "reportes"];
+
+export type ToastTipo = "ok" | "error" | "info";
+export interface Toast {
+  id: number;
+  tipo: ToastTipo;
+  msg: string;
+}
+export interface Confirmacion {
+  titulo: string;
+  mensaje?: string;
+  confirmar?: string;
+  peligro?: boolean;
+}
+
+export type Intent =
+  | "nuevo-pensionado"
+  | "ver-deben"
+  | "checkin"
+  | "ver-huespedes"
+  | "nueva-habitacion"
+  | "ver-arreglo"
+  | "nuevo-gasto"
+  | "nuevo-producto";
 
 interface AdminState {
   view: AdminView;
   moneda: "COP" | "USD";
-  sel: number;
-  toast: string;
-  cerrado: boolean;
-  recibo: Recibo | null;
-  rooms: Room[];
-  stats: { pendientes: number; libres: number };
+  sel: string | null;
+  toasts: Toast[];
+  confirmacion: Confirmacion | null;
+  recibo: Pago | null;
+  rooms: RoomView[];
   dashboard: DashboardData | null;
   cierreData: CierreData | null;
-  residents: ResidentRow[];
+  residents: ResidentView[];
   sales: Sale[];
   caja: CajaData | null;
+  pagos: Pago[];
+  reportes: ReporteRow[];
   panelLoading: boolean;
   panelRefreshing: boolean;
   panelError: string | null;
   lastSynced: number | null;
+  /** Acción pendiente para la pantalla destino (p. ej. abrir el formulario de nuevo gasto al llegar). */
+  intent: Intent | null;
 
   setView: (view: AdminView) => void;
+  /** Lleva a una pantalla y le pide que haga algo apenas abra. */
+  irA: (view: AdminView, intent?: Intent) => void;
+  /** La pantalla destino toma la acción pendiente (una sola vez). */
+  tomarIntent: (validos: Intent[]) => Intent | null;
   setMoneda: (moneda: "COP" | "USD") => void;
-  setSel: (id: number) => void;
-  flash: (msg: string) => void;
-  setCerrado: (v: boolean) => void;
-  setRecibo: (recibo: Recibo | null) => void;
-  setRooms: (rooms: Room[]) => void;
-  updateRoom: (room: Room) => void;
-  setStats: (stats: { pendientes: number; libres: number }) => void;
-  marcarLimpia: (id: number) => void;
+  setSel: (id: string | null) => void;
+  /** Aviso flotante: verde si salió bien, rojo si falló, azul informativo. */
+  flash: (msg: string, tipo?: ToastTipo) => void;
+  cerrarToast: (id: number) => void;
+  /** Ventana de confirmación propia (reemplaza window.confirm). Resuelve true si acepta. */
+  confirmar: (c: Confirmacion) => Promise<boolean>;
+  responderConfirmacion: (ok: boolean) => void;
+  setRecibo: (recibo: Pago | null) => void;
   refreshPanel: (force?: boolean) => Promise<void>;
   refreshResources: (keys: PanelResource[]) => Promise<void>;
+  /** Tras cualquier operación: recarga todo lo que puede haber cambiado. */
+  refreshAll: () => Promise<void>;
 }
 
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let toastSeq = 0;
+let resolverConfirmacion: ((ok: boolean) => void) | null = null;
 const inflight = new Map<PanelResource, Promise<void>>();
 let panelInflight: Promise<void> | null = null;
-
-function applyRooms(set: (partial: Partial<AdminState>) => void, get: () => AdminState, rooms: Room[]) {
-  set({
-    rooms,
-    stats: {
-      ...get().stats,
-      libres: rooms.filter((r) => r.estado === "LIBRE").length,
-    },
-  });
-}
 
 export const useAdminStore = create<AdminState>((set, get) => {
   async function loadResource(key: PanelResource) {
@@ -74,48 +94,30 @@ export const useAdminStore = create<AdminState>((set, get) => {
 
     const task = (async () => {
       switch (key) {
-        case "rooms": {
-          const rooms = await apiGet<Room[]>("/api/rooms");
-          applyRooms(set, get, rooms);
+        case "rooms":
+          set({ rooms: await apiGet<RoomView[]>("/api/rooms") });
           break;
-        }
-        case "dashboard": {
-          const dashboard = await apiGet<DashboardData>("/api/dashboard");
-          set((s) => ({
-            dashboard,
-            stats: {
-              pendientes: dashboard.kpis.pendientes,
-              libres: dashboard.kpis.libres ?? s.stats.libres,
-            },
-          }));
+        case "dashboard":
+          set({ dashboard: await apiGet<DashboardData>("/api/dashboard") });
           break;
-        }
-        case "cierre": {
-          const cierreData = await apiGet<CierreData>("/api/cierre");
-          set({ cierreData, cerrado: cierreData.cerrado });
+        case "cierre":
+          set({ cierreData: await apiGet<CierreData>("/api/cierre") });
           break;
-        }
-        case "residents": {
-          const residents = await apiGet<ResidentRow[]>("/api/residents");
-          set((s) => ({
-            residents,
-            stats: {
-              pendientes: residents.filter((r) => r.saldo > 0).length,
-              libres: s.stats.libres,
-            },
-          }));
+        case "residents":
+          set({ residents: await apiGet<ResidentView[]>("/api/residents") });
           break;
-        }
-        case "sales": {
-          const sales = await apiGet<Sale[]>("/api/sales");
-          set({ sales });
+        case "sales":
+          set({ sales: await apiGet<Sale[]>("/api/sales") });
           break;
-        }
-        case "caja": {
-          const caja = await apiGet<CajaData>("/api/caja");
-          set({ caja });
+        case "caja":
+          set({ caja: await apiGet<CajaData>("/api/caja") });
           break;
-        }
+        case "pagos":
+          set({ pagos: await apiGet<Pago[]>("/api/pagos") });
+          break;
+        case "reportes":
+          set({ reportes: await apiGet<ReporteRow[]>("/api/reportes") });
+          break;
       }
     })().finally(() => {
       inflight.delete(key);
@@ -127,11 +129,7 @@ export const useAdminStore = create<AdminState>((set, get) => {
 
   async function refreshResources(keys: PanelResource[]) {
     const hasData = Boolean(get().dashboard || get().rooms.length || get().residents.length);
-    set({
-      panelRefreshing: true,
-      panelError: null,
-      panelLoading: !hasData,
-    });
+    set({ panelRefreshing: true, panelError: null, panelLoading: !hasData });
 
     const results = await Promise.allSettled(keys.map((key) => loadResource(key)));
     const failed = results.filter((r) => r.status === "rejected").length;
@@ -147,17 +145,19 @@ export const useAdminStore = create<AdminState>((set, get) => {
   return {
     view: "dashboard",
     moneda: "COP",
-    sel: 3,
-    toast: "",
-    cerrado: false,
+    sel: null,
+    toasts: [],
+    confirmacion: null,
+    intent: null,
     recibo: null,
     rooms: [],
-    stats: { pendientes: 0, libres: 0 },
     dashboard: null,
     cierreData: null,
     residents: [],
     sales: [],
     caja: null,
+    pagos: [],
+    reportes: [],
     panelLoading: true,
     panelRefreshing: false,
     panelError: null,
@@ -169,37 +169,42 @@ export const useAdminStore = create<AdminState>((set, get) => {
       }
       set({ view });
     },
+    irA: (view, intent) => {
+      get().setView(view);
+      set({ intent: intent ?? null });
+    },
+    tomarIntent: (validos) => {
+      const i = get().intent;
+      if (!i || !validos.includes(i)) return null;
+      set({ intent: null });
+      return i;
+    },
     setMoneda: (moneda) => set({ moneda }),
     setSel: (id) => set({ sel: id }),
-    setCerrado: (cerrado) => set({ cerrado }),
     setRecibo: (recibo) => set({ recibo, view: recibo ? "recibo" : get().view }),
-    setRooms: (rooms) => applyRooms(set, get, rooms),
-    updateRoom: (room) =>
-      set((s) => ({
-        rooms: s.rooms.map((r) => (r.id === room.id ? room : r)),
-        stats: {
-          ...s.stats,
-          libres: s.rooms.filter((r) => (r.id === room.id ? room : r).estado === "LIBRE").length,
-        },
-      })),
-    setStats: (stats) => set({ stats }),
 
-    flash: (msg) => {
-      if (toastTimer) clearTimeout(toastTimer);
-      set({ toast: msg });
-      toastTimer = setTimeout(() => set({ toast: "" }), 2200);
+    flash: (msg, tipo = "ok") => {
+      const id = ++toastSeq;
+      set({ toasts: [...get().toasts.slice(-2), { id, tipo, msg }] });
+      setTimeout(() => get().cerrarToast(id), tipo === "error" ? 6000 : 3500);
+    },
+    cerrarToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
+
+    confirmar: (c) => {
+      resolverConfirmacion?.(false);
+      set({ confirmacion: c });
+      return new Promise<boolean>((resolve) => {
+        resolverConfirmacion = resolve;
+      });
+    },
+    responderConfirmacion: (ok) => {
+      resolverConfirmacion?.(ok);
+      resolverConfirmacion = null;
+      set({ confirmacion: null });
     },
 
-    marcarLimpia: (id) =>
-      set((s) => ({
-        rooms: s.rooms.map((r) =>
-          r.id === id
-            ? { ...r, estado: "LIBRE" as RoomStatus, ocupante: "Disponible" }
-            : r
-        ),
-      })),
-
     refreshResources,
+    refreshAll: () => refreshResources(ALL_RESOURCES),
 
     refreshPanel: async (force = false) => {
       const s = get();

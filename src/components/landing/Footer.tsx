@@ -1,5 +1,5 @@
-import Link from "next/link";
-import Image from "next/image";
+import Link from "@/components/ui/Link";
+import Image from "@/components/ui/Image";
 import { PHONE_DISPLAY, PHONE_TEL, LOGO_SRC } from "@/lib/constants";
 
 export function Footer() {

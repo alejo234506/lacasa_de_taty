@@ -12,7 +12,7 @@ export function AdminToolbar({
   return (
     <div className={cn("flex flex-wrap items-center justify-between gap-3", className)}>
       {title && (
-        <h3 className="text-sm font-bold tracking-wider uppercase text-muted">{title}</h3>
+        <h3 className="section-title">{title}</h3>
       )}
       <div className="flex flex-wrap items-center gap-2 ml-auto">{children}</div>
     </div>

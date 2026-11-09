@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image from "@/components/ui/Image";
 import { ArrowDown, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { WHATSAPP_URL, LOGO_SRC } from "@/lib/constants";

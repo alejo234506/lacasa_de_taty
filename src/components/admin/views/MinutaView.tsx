@@ -1,10 +1,10 @@
-"use client";
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { useAdminStore } from "@/lib/store";
 import { apiGet, apiSend } from "@/lib/api-client";
 import { AdminBtnGroup, AdminToolbar } from "../ui/AdminToolbar";
+import { Skeleton } from "../ui/Modal";
 
 interface DiaRow {
   dia: string;
@@ -54,7 +54,7 @@ export function MinutaView() {
       });
       flash(`Minuta semana ${semana} guardada`);
     } catch {
-      flash("Error al guardar minuta");
+      flash("Error al guardar minuta", "error");
     } finally {
       setSaving(false);
     }
@@ -96,9 +96,29 @@ export function MinutaView() {
         </AdminBtnGroup>
       </AdminToolbar>
 
-      <div className="bg-white rounded-2xl border border-border overflow-x-auto">
+      {/* Celular: una tarjeta por día */}
+      {!loading && (
+        <div className="sm:hidden space-y-3">
+          {dias.map((d, i) => (
+            <div key={d.dia} className="card p-4 space-y-2">
+              <div className="font-[family-name:var(--font-playfair)] font-bold uppercase tracking-wide">{d.dia}</div>
+              {(["desayuno", "almuerzo", "cena"] as const).map((field) => (
+                <label key={field} className="block">
+                  <span className="text-xs font-semibold text-muted uppercase tracking-wide">{field}</span>
+                  <input
+                    className="mt-1 w-full px-3 min-h-[48px] rounded-xl border border-border bg-background text-base focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
+                    value={d[field]}
+                    onChange={(e) => updateDia(i, field, e.target.value)}
+                  />
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className={loading ? "" : "hidden sm:block card overflow-x-auto"}>
         {loading ? (
-          <div className="p-8 text-muted animate-pulse">Cargando minuta...</div>
+          <Skeleton />
         ) : (
           <table className="w-full text-sm min-w-[700px]">
             <thead>

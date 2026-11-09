@@ -1,8 +1,7 @@
-"use client";
 
 import { useState, useEffect, type MouseEvent } from "react";
-import Link from "next/link";
-import Image from "next/image";
+import Link from "@/components/ui/Link";
+import Image from "@/components/ui/Image";
 import { Menu, X, Phone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PHONE_DISPLAY, PHONE_TEL, LOGO_SRC } from "@/lib/constants";
